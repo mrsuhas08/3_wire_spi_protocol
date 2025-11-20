@@ -1,28 +1,28 @@
 module spi_s #(parameter d_width=16, a_width=8)(rst,sclk,cs,sdio);
     input rst,sclk,cs;
     inout sdio;
-   
-    reg [d_width-1:0]mem[a_width:0];
+    
+    reg [d_width-1:0]mem[a_width-1:0];
     reg [a_width-1:0]reg_addr;
-   
+    
     reg [a_width-1:0]count;
     reg [a_width-1:0]a_shift;
     reg [d_width-1:0]d_shift;
-   
+    
     reg [2:0] state;
-   
+    
     localparam idle=0,
                inst_rw=1,
                wr_addr=2,
                wr_data=3,
                rd_data=4;
-                                 
+                                  
     reg r_w,drive,sdo;
     wire sdi;
-   
+    
     assign sdio = drive ?sdo:1'bz;
     assign sdi=sdio;
-   
+    
     always @(posedge sclk or posedge rst or posedge cs)begin
         if(rst || cs)begin
             count<=0;
@@ -32,13 +32,13 @@ module spi_s #(parameter d_width=16, a_width=8)(rst,sclk,cs,sdio);
             a_shift<=0;
             d_shift<=0;
             reg_addr<=0;
-            state<=idle;      
+            state<=idle;       
         end
         else begin
             if(cs)begin
                 state<=idle;
                 drive<=0;
-                count<=0;
+                count<=0; 
             end
             else begin
                 case (state)
@@ -47,24 +47,30 @@ module spi_s #(parameter d_width=16, a_width=8)(rst,sclk,cs,sdio);
                         drive<=0;
                         state<=inst_rw;
                     end
-                   
+                    
                     inst_rw:begin
-                        if(count==0)begin
-                        r_w<=sdi;
-                        drive<=0;
-                        count<=a_width;
-                        state<=wr_addr;
+                        if(count<=0)begin
+                            r_w<=sdi;
+                            drive<=0;
+                            count<=count+1;
+                        end
+                        else begin
+                            count<=0;
+                            a_shift<=0;
+                            state<=wr_addr;
                         end
                     end
-                   
+                    
                     wr_addr: begin
-                        a_shift<={a_shift[a_width-1:0],sdi};
-                        count<=count-1;
-                                         
-                        if(count==1)begin
+                        if(count<a_width-1)begin
+                            a_shift<={a_shift[a_width-2:0],sdi};
+                            count<=count+1;
+                        end                      
+                        else begin
+                        if(count==a_width-1)begin
                             reg_addr<={a_shift[a_width-2:0],sdi};
-                           
-                            if(r_w!=0)begin
+                        end        
+                            if(!r_w)begin
                                 d_shift<=mem[{a_shift[a_width-2:0],sdi}];
                                 count<=d_width;
                                 drive<=1;
@@ -72,28 +78,31 @@ module spi_s #(parameter d_width=16, a_width=8)(rst,sclk,cs,sdio);
                             end
                             else begin
                                 drive<=0;
-                                count<=d_width;
+                                count<=0;
                                 state<=wr_data;
                             end
                         end
                     end
-                   
+                    
                     wr_data:begin
+                    if(count<d_width)begin
                         d_shift<={d_shift[d_width-2:0],sdi};
-                        count<=count-1;
-                       
-                        if(count==1)begin
-                            mem[reg_addr]<={d_shift[d_width-2:0],sdi};
-                            count<=0;
-                            state<=idle;
-                        end
+                        count<=count+1;
                     end
-                   
+                    else begin
+                    if(count==d_width)begin
+                        mem[reg_addr]<={d_shift[d_width-2:0],sdi};
+                    end
+                        count<=0;
+                        state<=idle;
+                    end
+                    end
+                    
                     rd_data: begin
                         sdo<=d_shift[d_width-1];
                         d_shift<={d_shift[d_width-2:0],1'b0};
                         count<=count-1;
-                       
+                        
                         if(count==1)begin
                             count<=0;
                             drive<=0;
@@ -105,5 +114,5 @@ module spi_s #(parameter d_width=16, a_width=8)(rst,sclk,cs,sdio);
             end
         end
     end
-   
+    
 endmodule

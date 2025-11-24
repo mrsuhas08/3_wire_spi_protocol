@@ -4,4 +4,3 @@ This protocol is of 3 wired SPI Protocol.
        cs is Master's output and Slave input,
        sclk is Master generated clock to Slave input clock.
        sdio is inout port in both Master and Slave.
-Note:- 1. This code is working but not properly, i am working on it.
